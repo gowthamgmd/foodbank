@@ -1,0 +1,35 @@
+# ─── Java / Maven ────────────────────────────────────────────────
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+*.iml
+.mvn/timing.properties
+
+# ─── Node / Frontend ────────────────────────────────────────────
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+
+# ─── Python / AI Services ───────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# ─── IDE / OS ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# ─── Upload / temp directories ──────────────────────────────────
+backend/uploads/

@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: foodbank-postgres
+    environment:
+      POSTGRES_DB:       foodbank
+      POSTGRES_USER:     foodbank_user
+      POSTGRES_PASSWORD: foodbank_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foodbank_user -d foodbank"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Python AI Microservices ────────────────────────────────────
+  ai-services:
+    build:
+      context: ./ai-services
+      dockerfile: Dockerfile
+    container_name: foodbank-ai
+    ports:
+      - "5001:5001"
+    environment:
+      FLASK_ENV: development
+    restart: unless-stopped
+
+  # ── Spring Boot Backend ────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: foodbank-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/foodbank
+      SPRING_DATASOURCE_USERNAME: foodbank_user
+      SPRING_DATASOURCE_PASSWORD: foodbank_pass
+      APP_AI_BASE_URL:            http://ai-services:5001
+      APP_JWT_SECRET:             SmartFoodBank2024_SuperSecretKey_MustBe256BitsLong!1234
+      APP_JWT_EXPIRATION_MS:      86400000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-services:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

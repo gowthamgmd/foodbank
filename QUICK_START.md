@@ -1,95 +1,202 @@
-# Quick Start Guide - MongoDB is Already Running! ✅
+# Quick Start Guide - MongoDB Atlas
 
-## Your Current Status:
-- ✅ MongoDB Server: **RUNNING** (Windows Service)
-- ✅ MongoDB Compass: **INSTALLED**
-- ✅ AI Services: **RUNNING** on port 5001
-- ⏳ Backend: Ready to start
-- ⏳ Frontend: Ready to start
+## 🎯 Prerequisites
 
-## Step-by-Step Instructions:
+Make sure you have:
+- ✅ Node.js (v16+)
+- ✅ npm (v8+)  
+- ✅ MongoDB Atlas account (free)
+- ✅ Git
 
-### 1️⃣ Verify MongoDB with Compass (Optional)
+---
 
-1. Open **MongoDB Compass**
-2. Connect to: `mongodb://localhost:27017`
-3. You should see a successful connection
-4. You'll see the `foodbank` database appear after starting the backend
+## Step-by-Step Setup
 
-### 2️⃣ Start the Backend
+### 1️⃣ Setup MongoDB Atlas (5 minutes)
 
-Open a new PowerShell terminal and run:
+Follow the detailed guide in **DATABASE_SETUP.md**:
+
+1. Create account at https://www.mongodb.com/cloud/atlas/register
+2. Create free M0 cluster
+3. Set up authentication (username: `foodbank`)
+4. Configure IP allowlist (Allow from Anywhere for dev)
+5. Copy connection string
+
+**Example connection string:**
+```
+mongodb+srv://foodbank:yourpassword@cluster.mongodb.net/foodbank?retryWrites=true&w=majority
+```
+
+### 2️⃣ Setup Backend Environment
+
+Create `backend/.env`:
 
 ```powershell
-cd "C:\Users\g2621\Desktop\food bank - Copy\backend"
+cd backend
+copy .env.example .env
+notepad .env
+```
+
+Update in `.env`:
+```
+MONGODB_URI=mongodb+srv://foodbank:yourpassword@cluster.mongodb.net/foodbank?retryWrites=true&w=majority
+JWT_SECRET=SmartFoodBank2024_SuperSecretKey
+PORT=8080
+NODE_ENV=development
+AI_BASE_URL=http://localhost:5001
+```
+
+### 3️⃣ Install Dependencies
+
+```powershell
+cd backend
+npm install
+cd ../frontend
+npm install
+cd ../ai-services
+pip install -r requirements.txt
+```
+
+### 4️⃣ Start AI Services
+
+Open PowerShell and run:
+
+```powershell
+cd "ai-services"
+python app.py
+```
+
+AI services will start on http://localhost:5001
+
+### 5️⃣ Start Backend
+
+Open a **NEW** PowerShell terminal and run:
+
+```powershell
+cd "backend"
 npm start
 ```
 
-The backend will:
-- ✅ Connect to MongoDB
-- ✅ Create the `foodbank` database
-- ✅ Create a default admin user
-- ✅ Start on http://localhost:8080
+You'll see:
+```
+✅ Connected to MongoDB
+🚀 Node.js Backend running on http://localhost:8080
+```
 
-### 3️⃣ Start the Frontend
+### 6️⃣ Start Frontend
 
-Open another PowerShell terminal and run:
+Open another **NEW** PowerShell terminal and run:
 
 ```powershell
-cd "C:\Users\g2621\Desktop\food bank - Copy\frontend"
+cd "frontend"
 npm run dev
 ```
 
 Frontend will start on http://localhost:3000
 
-### 4️⃣ Login and Test
+---
 
-1. Go to: **http://localhost:3000**
-2. Login with:
-   - **Email**: admin@foodbank.com
-   - **Password**: admin123
+## 🚀 One-Click Start (Windows)
 
-## 🎯 All-in-One Start Script
+Or simply double-click: **`start-dev.bat`**
 
-Or simply double-click: **`start-dev.bat`** in the project root folder!
+This starts all services automatically!
 
-## 📊 View Your Data in MongoDB Compass
+---
 
-After the backend starts:
-1. Open MongoDB Compass
-2. Connect to `mongodb://localhost:27017`
-3. Click on `foodbank` database
-4. You'll see collections:
-   - users
-   - donations
-   - inventory
-   - beneficiaries
-   - parcels
-   - pickups
-   - feedbacks
+## 🔐 Login Credentials
 
-## 🔧 MongoDB Management
+After the backend starts, login with:
 
-**Check if MongoDB is running:**
+| Field | Value |
+|-------|-------|
+| Email | admin@foodbank.com |
+| Password | admin123 |
+
+---
+
+## 📊 Access Your Data
+
+### Using MongoDB Atlas UI:
+1. Go to https://www.mongodb.com/cloud/atlas
+2. Select your cluster
+3. Click **Collections** tab
+4. Browse the `foodbank` database
+
+### Using MongoDB Compass (GUI):
+1. Download: https://www.mongodb.com/products/compass
+2. Click **New Connection**
+3. Paste your connection string
+4. Click **Connect**
+
+### Using Command Line:
 ```powershell
-Get-Service MongoDB
-```
-
-**Stop MongoDB:**
-```powershell
-Stop-Service MongoDB
-```
-
-**Start MongoDB:**
-```powershell
-Start-Service MongoDB
-```
-
-**Restart MongoDB:**
-```powershell
-Restart-Service MongoDB
+mongosh "mongodb+srv://foodbank:password@cluster.mongodb.net/foodbank"
 ```
 
 ---
 
-**You're all set! MongoDB is ready. Just start the backend and frontend now! 🚀**
+## ✅ Verify Everything Works
+
+1. Frontend: http://localhost:3000
+2. Backend API: http://localhost:8080/api/donations
+3. AI Services: http://localhost:5001/health
+4. MongoDB Atlas: Check your cluster Collections page
+
+---
+
+## 🔧 Useful Commands
+
+**Stop all services:**
+```powershell
+# Press Ctrl+C in each terminal
+```
+
+**Check Node/npm versions:**
+```powershell
+node --version
+npm --version
+```
+
+**Install Python dependencies:**
+```powershell
+pip install -r requirements.txt
+```
+
+**View logs (backend):**
+```powershell
+# Check the terminal where npm start is running
+```
+
+---
+
+## ⚠️ Common Issues
+
+**"MONGODB_URI not found"**
+- Check `.env` file exists in `backend/` folder
+- Verify connection string is correct
+
+**"Connection timeout"**
+- Check IP allowlist in MongoDB Atlas
+- Verify credentials in connection string
+
+**"Port 8080 already in use"**
+- Change PORT in `.env`
+- Or kill the process using: `netstat -ano | findstr :8080`
+
+**"Cannot find module"**
+- Run: `npm install` in the respective folder
+
+---
+
+## 📚 Complete Documentation
+
+For more details, see:
+- **DATABASE_SETUP.md** - Full MongoDB Atlas setup
+- **README.md** - Project overview
+- **backend/server.js** - API documentation
+- **frontend/src** - React components
+
+---
+
+**You're ready! Start the services and build something amazing! 🎉**

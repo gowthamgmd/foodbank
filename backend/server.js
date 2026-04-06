@@ -14,8 +14,11 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/foodbank';
-mongoose.connect(MONGODB_URI)
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://foodbank:password@foodbank-cluster.mongodb.net/foodbank?retryWrites=true&w=majority';
+mongoose.connect(MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000,
+})
     .then(() => console.log('✅ Connected to MongoDB'))
     .catch(err => console.error('❌ MongoDB connection error:', err));
 

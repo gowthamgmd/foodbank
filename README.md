@@ -11,32 +11,21 @@ A comprehensive food bank management system with AI-powered features for demand 
 
 ## 📋 Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 16+ and npm
 - Python 3.9+
-- MongoDB 5.0+ (or Docker for containerized deployment)
+- MongoDB Atlas account (free tier: https://www.mongodb.com/cloud/atlas)
 - Docker and Docker Compose (optional, for containerized deployment)
 
 ## 🚀 Quick Start (Development)
 
-### 0. Start MongoDB
+### 0. Setup MongoDB Atlas
 
-Make sure MongoDB is running on your system:
-
-**Windows:**
-```bash
-# If installed as a service, it should already be running
-# Or start manually:
-mongod
-```
-
-**Linux/Mac:**
-```bash
-# Using systemd
-sudo systemctl start mongod
-
-# Or manually
-mongod
-```
+⚠️ **First**, follow the **DATABASE_SETUP.md** guide to:
+1. Create a free MongoDB Atlas account
+2. Create a free M0 cluster
+3. Set up authentication and IP allowlist
+4. Copy your connection string
+5. Create `backend/.env` with your MongoDB URI
 
 ### 1. Start AI Services
 
@@ -50,6 +39,12 @@ AI services will run on http://localhost:5001
 
 ### 2. Start Backend
 
+First, ensure `backend/.env` contains your MongoDB Atlas connection string:
+```
+MONGODB_URI=mongodb+srv://foodbank:password@cluster.mongodb.net/foodbank?retryWrites=true&w=majority
+```
+
+Then start the backend:
 ```bash
 cd backend
 npm install
@@ -73,14 +68,17 @@ Frontend will run on http://localhost:3000
 To run all services together using Docker:
 
 ```bash
+# First, set your MongoDB Atlas connection string in docker-compose.yml
+# Update MONGODB_URI environment variable in the backend service
 docker-compose up --build
 ```
 
 Services will be available at:
 - Frontend: http://localhost:3000
-- Backend API: http://localhost:8080
+- Backend API: http://localhost:8080  
 - AI Services: http://localhost:5001
-- MongoDB: localhost:27017
+
+**Note**: By default, docker-compose uses MongoDB Atlas. To use local MongoDB instead, uncomment the `mongodb` service in `docker-compose.yml`
 
 ## 👥 Default Accounts
 
@@ -190,44 +188,50 @@ You can register new accounts with the following roles:
 ## 🛠️ Development Tips
 
 ### Backend Development
-- MongoDB connection automatically handled on startup
-- Use `npm run dev` with nodemon for auto-restart (install nodemon: `npm i -D nodemon`)
-- Database: MongoDB (connection: `mongodb://localhost:27017/foodbank`)
-- Uploaded files stored in: `uploads/`
-- View MongoDB data using MongoDB Compass or Studio 3T
+- **Database**: MongoDB Atlas (cloud-based, free tier available)
+- **Connection**: `mongodb+srv://username:password@cluster.mongodb.net/foodbank`
+- **Setup**: Follow DATABASE_SETUP.md for MongoDB Atlas setup
+- **Development**: Use `npm run dev` with nodemon for auto-restart
+- **Data Management**: Use MongoDB Compass GUI or mongosh CLI
+- **File Uploads**: Stored in `uploads/` directory
 
 ### Frontend Development
 - API calls automatically proxied to backend during development
 - Hot module replacement enabled with Vite
 - Tailwind CSS for styling
+- Reference documentation in QUICK_START.md
 
 ### AI Services Development
 - Stub implementations for all AI features
 - Ready for integration with real ML models
-- Support for Prophet, CNN models, TextBlob, etc.
+- Support for Prophet, CNN models, etc.
+- Python 3.10+ required
 
 ## 🐛 Troubleshooting
 
 ### MongoDB connection errors
-- Ensure MongoDB is installed and running
-- Check connection string in `.env` file
-- Verify port 27017 is not in use
-- For Windows: Check if MongoDB service is started
+- Ensure MongoDB Atlas cluster is created
+- Check IP allowlist in Network Access (allow from anywhere for dev)
+- Verify connection string in `.env` file
+- Replace `username` and `password` with actual credentials
+- Enable authentication in Database Access
 
 ### Backend won't start
-- Ensure port 8080 is not in use
-- Check Node.js version (requires 18+)
-- Verify MongoDB is accessible
-- Check `.env` file exists with correct MONGODB_URI
+- Ensure port 8080 is available
+- Check Node.js version (requires 16+)
+- Verify MongoDB Atlas credentials are correct
+- Check `.env` file in `backend/` directory with proper MONGODB_URI
 
 ### Frontend can't connect to backend
-- Verify backend is running on port 8080
+- Verify backend is running on http://localhost:8080
 - Check browser console for CORS errors
 - Ensure vite.config.js proxy is configured correctly
+- Try accessing http://localhost:8080/api/donations directly
 
-### AI services unreachable
-- Verify Python dependencies are installed
-- Check if port 5001 is available
+### MongoDB Atlas connection timeout
+- Check IP allowlist (must include your IP)
+- Verify username and password in connection string
+- Ensure cluster is running (check Atlas dashboard)
 - Review backend AI_BASE_URL environment variable
 
 ## 📝 License

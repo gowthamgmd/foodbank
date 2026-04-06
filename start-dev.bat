@@ -30,7 +30,7 @@ echo.
 echo 📱 Frontend: http://localhost:3000
 echo 🔧 Backend API: http://localhost:8080
 echo 🤖 AI Services: http://localhost:5001
-echo 🗄️  MongoDB: mongodb://localhost:27017
+echo 🗄️  MongoDB Atlas: mongodb+srv://cluster.mongodb.net/foodbank
 echo.
 echo Default Admin Login:
 echo   Email: admin@foodbank.com

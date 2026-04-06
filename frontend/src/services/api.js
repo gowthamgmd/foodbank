@@ -50,8 +50,14 @@ export const inventoryApi = {
 export const donationApi = {
     getMyDonations: () => api.get('/donations'),
     getAll: () => api.get('/donations/all'),
+    getAvailable: () => api.get('/donations/available'),
+    getById: (id) => api.get(`/donations/${id}`),
     create: (data) => api.post('/donations', data),
     updateStatus: (id, status) => api.patch(`/donations/${id}/status`, { status }),
+    uploadImage: (formData) => api.post('/donations/upload-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    aiAssess: (id, assessment) => api.post(`/donations/${id}/ai-assess`, { assessment }),
 };
 
 // ─── Beneficiaries ───────────────────────────────────────────
@@ -71,7 +77,6 @@ export const parcelApi = {
 // ─── Feedback ────────────────────────────────────────────────
 export const feedbackApi = {
     submit: (data) => api.post('/feedback', data),
-    getSentimentAll: () => api.get('/feedback/sentiment'),
 };
 
 // ─── Users / Profile ─────────────────────────────────────────
@@ -84,7 +89,11 @@ export const userApi = {
 // ─── Pickups ─────────────────────────────────────────────────
 export const pickupApi = {
     getAll: () => api.get('/pickups'),
+    getById: (id) => api.get(`/pickups/${id}`),
+    create: (data) => api.post('/pickups', data),
+    update: (id, data) => api.patch(`/pickups/${id}`, data),
     updateStatus: (id, status) => api.patch(`/pickups/${id}/status`, { status }),
+    remove: (id) => api.delete(`/pickups/${id}`),
 };
 
 // ─── AI Module ───────────────────────────────────────────────
@@ -93,8 +102,16 @@ export const aiApi = {
     assessImage: (formData) => api.post('/ai/assess-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
     }),
-    matchDonations: () => api.get('/ai/match-donations'),
-    analyzeSentiment: () => api.get('/ai/sentiment'),
+    demandForecast: () => api.get('/ai/demand-forecast'),
+};
+
+// ─── Food Requests ───────────────────────────────────────────
+export const foodRequestApi = {
+    create: (data) => api.post('/food-requests', data),
+    getAll: () => api.get('/food-requests'),
+    getById: (id) => api.get(`/food-requests/${id}`),
+    updateStatus: (id, status) => api.patch(`/food-requests/${id}/status`, { status }),
+    delete: (id) => api.delete(`/food-requests/${id}`),
 };
 
 export default api;

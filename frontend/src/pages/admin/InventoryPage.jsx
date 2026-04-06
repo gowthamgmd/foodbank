@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { inventoryApi, userApi } from '../../services/api';
-import ExpiryBadge from '../../components/ExpiryBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { formatDate, formatKg, QUALITY_COLORS, isFutureDate, isExpiringSoon } from '../../utils/helpers';
+import { formatKg, formatFoodAge, QUALITY_COLORS } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
 const CATEGORIES = ['Grains', 'Dairy', 'Proteins', 'Vegetables', 'Fruits', 'Beverages', 'Canned Goods', 'Bakery', 'Other'];
 const QUALITY_OPTIONS = ['FRESH', 'PARTIAL', 'SPOILED'];
 
 const EMPTY_FORM = {
-    name: '', category: 'Grains', quantity: '', expiryDate: '',
+    name: '', category: 'Grains', quantity: '', foodPreparedHoursAgo: '',
     donorId: '', qualityStatus: 'FRESH', imageUrl: '',
 };
 
@@ -49,7 +48,7 @@ export default function InventoryPage() {
         setEditing(item);
         setForm({
             name: item.name, category: item.category, quantity: item.quantity,
-            expiryDate: item.expiryDate?.slice(0, 10) ?? '',
+            foodPreparedHoursAgo: '', // Will be recalculated on save
             donorId: item.donorId ?? '', qualityStatus: item.qualityStatus ?? 'FRESH', imageUrl: item.imageUrl ?? '',
         });
         setModal(true);
@@ -62,12 +61,8 @@ export default function InventoryPage() {
 
     async function handleSubmit(e) {
         e.preventDefault();
-        if (!form.name || !form.quantity || !form.expiryDate) {
-            toast.error('Name, quantity, and expiry date are required.');
-            return;
-        }
-        if (!isFutureDate(form.expiryDate)) {
-            toast.error('Expiry date must be in the future.');
+        if (!form.name || !form.quantity) {
+            toast.error('Name and quantity are required.');
             return;
         }
         setSubmitting(true);
@@ -138,22 +133,24 @@ export default function InventoryPage() {
                     <table className="table">
                         <thead>
                             <tr>
-                                <th>Name</th><th>Category</th><th>Quantity</th>
-                                <th>Expiry Date</th><th>Quality</th><th>Expiry Status</th><th>Actions</th>
+                                <th>Name</th><th>Category</th><th>Quantity</th><th>Donor</th>
+                                <th>Food Ready (Hours Ago)</th><th>Quality</th><th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filtered.map((item) => {
                                 const q = QUALITY_COLORS[item.qualityStatus] ?? QUALITY_COLORS.FRESH;
-                                const row = isExpiringSoon(item.expiryDate) ? 'bg-red-50' : '';
+                                const donor = donors.find(d => d.id === item.donorId);
                                 return (
-                                    <tr key={item.id} className={row}>
+                                    <tr key={item.id}>
                                         <td className="font-medium">{item.name}</td>
                                         <td><span className="badge badge-blue">{item.category}</span></td>
                                         <td>{formatKg(item.quantity)}</td>
-                                        <td>{formatDate(item.expiryDate)}</td>
+                                        <td className="text-sm text-gray-600">
+                                            {donor ? (donor.organizationName || donor.name) : '—'}
+                                        </td>
+                                        <td>{formatFoodAge(item.foodPreparedTime)}</td>
                                         <td><span className={`badge ${q.bg} ${q.text}`}>{q.label}</span></td>
-                                        <td><ExpiryBadge expiryDate={item.expiryDate} /></td>
                                         <td>
                                             <div className="flex gap-2">
                                                 <button onClick={() => openEdit(item)} className="btn-ghost text-xs py-1 px-2">✏️ Edit</button>
@@ -195,8 +192,8 @@ export default function InventoryPage() {
                                         <input name="quantity" type="number" min="0.1" step="0.1" className="input-field" value={form.quantity} onChange={handleChange} required />
                                     </div>
                                     <div className="form-group">
-                                        <label className="label">Expiry Date *</label>
-                                        <input name="expiryDate" type="date" className="input-field" value={form.expiryDate} onChange={handleChange} required />
+                                        <label className="label">Food Ready (Hours Ago)</label>
+                                        <input name="foodPreparedHoursAgo" type="number" min="0" max="24" className="input-field" placeholder="e.g., 2" value={form.foodPreparedHoursAgo} onChange={handleChange} />
                                     </div>
                                     <div className="form-group">
                                         <label className="label">Donor</label>

@@ -14,6 +14,24 @@ export function formatDateTime(dateStr) {
     });
 }
 
+// ─── Calculate hours ago dynamically from timestamp ── 
+export function getHoursAgo(foodPreparedTime) {
+    if (!foodPreparedTime) return null;
+    const now = new Date();
+    const prepared = new Date(foodPreparedTime);
+    const diffMs = now - prepared;
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    return diffHours < 0 ? 0 : diffHours;
+}
+
+export function formatFoodAge(foodPreparedTime) {
+    const hoursAgo = getHoursAgo(foodPreparedTime);
+    if (hoursAgo === null || hoursAgo === undefined) return '—';
+    if (hoursAgo === 0) return 'Just now';
+    if (hoursAgo === 1) return '1 hour ago';
+    return `${hoursAgo} hours ago`;
+}
+
 export function daysUntilExpiry(expiryDate) {
     const now = new Date();
     const exp = new Date(expiryDate);

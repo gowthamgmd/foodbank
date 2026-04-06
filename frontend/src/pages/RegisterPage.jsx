@@ -4,13 +4,16 @@ import { useAuth } from '../context/AuthContext';
 import { extractErrorMessage, validateEmail, validatePhone, isFutureDate } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
-const DIETARY_OPTIONS = [
-    'Diabetic', 'Gluten-Free', 'Vegetarian', 'Vegan', 'Halal', 'Kosher', 'Nut-Free', 'Lactose-Free',
-];
-
 const INITIAL_BENEFICIARY = {
-    name: '', email: '', password: '', confirmPassword: '',
-    familySize: 1, dietaryRestrictions: [], address: '', phone: '',
+    name: '',  // Organization name
+    email: '', 
+    password: '', 
+    confirmPassword: '',
+    organizationName: '',
+    organizationDetails: '',
+    peopleSupported: 0,
+    address: '', 
+    phone: '',
 };
 const INITIAL_DONOR = {
     organizationName: '', contactPerson: '', email: '', password: '', confirmPassword: '',
@@ -32,14 +35,6 @@ export default function RegisterPage() {
         setError('');
     }
 
-    function toggleDietary(option) {
-        setBenForm((f) => ({
-            ...f,
-            dietaryRestrictions: f.dietaryRestrictions.includes(option)
-                ? f.dietaryRestrictions.filter((d) => d !== option)
-                : [...f.dietaryRestrictions, option],
-        }));
-    }
 
     function handleDonChange(e) {
         const { name, value } = e.target;
@@ -48,7 +43,7 @@ export default function RegisterPage() {
     }
 
     function validateBeneficiary() {
-        if (!benForm.name || !benForm.email || !benForm.password) return 'All required fields must be filled.';
+        if (!benForm.name || !benForm.email || !benForm.password || !benForm.peopleSupported) return 'All required fields must be filled.';
         if (!validateEmail(benForm.email)) return 'Invalid email address.';
         if (benForm.password.length < 6) return 'Password must be at least 6 characters.';
         if (benForm.password !== benForm.confirmPassword) return 'Passwords do not match.';
@@ -71,13 +66,34 @@ export default function RegisterPage() {
         if (validationError) { setError(validationError); return; }
 
         const payload = tab === 'BENEFICIARY'
-            ? { ...benForm, role: 'BENEFICIARY' }
-            : { ...donForm, role: 'DONOR' };
+            ? { 
+                name: benForm.name,
+                email: benForm.email,
+                password: benForm.password,
+                confirmPassword: benForm.confirmPassword,
+                organizationName: benForm.name,
+                organizationDetails: benForm.organizationDetails,
+                peopleSupported: benForm.peopleSupported,
+                address: benForm.address,
+                phone: benForm.phone,
+                role: 'BENEFICIARY' 
+            }
+            : { 
+                name: donForm.organizationName, // Map organizationName to name for backend
+                email: donForm.email,
+                password: donForm.password,
+                confirmPassword: donForm.confirmPassword,
+                phone: donForm.phone,
+                address: donForm.address,
+                contactPerson: donForm.contactPerson,
+                typicalDonationItems: donForm.typicalDonationItems,
+                role: 'DONOR' 
+            };
 
         setLoading(true);
         try {
             const user = await register(tab, payload);
-            toast.success(`Welcome, ${user.name || user.organizationName}! Account created.`);
+            toast.success(`Welcome, ${user.name}! Account created.`);
             const paths = { DONOR: '/donor/dashboard', BENEFICIARY: '/beneficiary/dashboard' };
             navigate(paths[tab], { replace: true });
         } catch (err) {
@@ -122,13 +138,13 @@ export default function RegisterPage() {
                             <>
                                 <div className="grid sm:grid-cols-2 gap-4">
                                     <div className="form-group">
-                                        <label className="label">Full Name *</label>
-                                        <input name="name" type="text" className="input-field" placeholder="Jane Doe"
+                                        <label className="label">Organization Name *</label>
+                                        <input name="name" type="text" className="input-field" placeholder="Hope Foundation"
                                             value={benForm.name} onChange={handleBenChange} required />
                                     </div>
                                     <div className="form-group">
                                         <label className="label">Email *</label>
-                                        <input name="email" type="email" className="input-field" placeholder="jane@email.com"
+                                        <input name="email" type="email" className="input-field" placeholder="org@email.com"
                                             value={benForm.email} onChange={handleBenChange} required />
                                     </div>
                                     <div className="form-group">
@@ -142,9 +158,9 @@ export default function RegisterPage() {
                                             value={benForm.confirmPassword} onChange={handleBenChange} required />
                                     </div>
                                     <div className="form-group">
-                                        <label className="label">Family Size</label>
-                                        <input name="familySize" type="number" min="1" max="20" className="input-field"
-                                            value={benForm.familySize} onChange={handleBenChange} />
+                                        <label className="label">People Supported *</label>
+                                        <input name="peopleSupported" type="number" min="1" className="input-field" placeholder="e.g., 50"
+                                            value={benForm.peopleSupported} onChange={handleBenChange} required />
                                     </div>
                                     <div className="form-group">
                                         <label className="label">Phone</label>
@@ -153,26 +169,15 @@ export default function RegisterPage() {
                                     </div>
                                 </div>
                                 <div className="form-group">
+                                    <label className="label">Organization Details</label>
+                                    <textarea name="organizationDetails" rows="3" className="input-field" 
+                                        placeholder="Brief description of your organization's mission and the community you serve..."
+                                        value={benForm.organizationDetails} onChange={handleBenChange} />
+                                </div>
+                                <div className="form-group">
                                     <label className="label">Address</label>
                                     <input name="address" type="text" className="input-field" placeholder="123 Main Street, City"
                                         value={benForm.address} onChange={handleBenChange} />
-                                </div>
-                                <div className="form-group">
-                                    <label className="label">Dietary Restrictions</label>
-                                    <div className="flex flex-wrap gap-2 mt-1">
-                                        {DIETARY_OPTIONS.map((opt) => (
-                                            <button
-                                                key={opt} type="button"
-                                                onClick={() => toggleDietary(opt)}
-                                                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${benForm.dietaryRestrictions.includes(opt)
-                                                        ? 'bg-primary-600 border-primary-600 text-white'
-                                                        : 'border-gray-300 text-gray-600 hover:border-primary-400'
-                                                    }`}
-                                            >
-                                                {opt}
-                                            </button>
-                                        ))}
-                                    </div>
                                 </div>
                             </>
                         ) : (

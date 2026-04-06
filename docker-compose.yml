@@ -2,23 +2,17 @@ version: "3.9"
 
 services:
 
-  # ── PostgreSQL ─────────────────────────────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    container_name: foodbank-postgres
-    environment:
-      POSTGRES_DB:       foodbank
-      POSTGRES_USER:     foodbank_user
-      POSTGRES_PASSWORD: foodbank_pass
+  # ── MongoDB Database ────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: foodbank-mongodb
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U foodbank_user -d foodbank"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: foodbank
+    restart: unless-stopped
 
   # ── Python AI Microservices ────────────────────────────────────
   ai-services:
@@ -32,7 +26,7 @@ services:
       FLASK_ENV: development
     restart: unless-stopped
 
-  # ── Spring Boot Backend ────────────────────────────────────────
+  # ── Node.js Backend ────────────────────────────────────────
   backend:
     build:
       context: ./backend
@@ -41,18 +35,27 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_DATASOURCE_URL:      jdbc:postgresql://postgres:5432/foodbank
-      SPRING_DATASOURCE_USERNAME: foodbank_user
-      SPRING_DATASOURCE_PASSWORD: foodbank_pass
-      APP_AI_BASE_URL:            http://ai-services:5001
-      APP_JWT_SECRET:             SmartFoodBank2024_SuperSecretKey_MustBe256BitsLong!1234
-      APP_JWT_EXPIRATION_MS:      86400000
+      MONGODB_URI: mongodb://mongodb:27017/foodbank
+      AI_BASE_URL: http://ai-services:5001
+      NODE_ENV: production
+    volumes:
+      - ./backend/uploads:/app/uploads
     depends_on:
-      postgres:
-        condition: service_healthy
-      ai-services:
-        condition: service_started
+      - mongodb
+      - ai-services
+    restart: unless-stopped
+
+  # ── React Frontend ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: foodbank-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  mongodb_data:

@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { aiApi } from '../../services/api';
+import { useState, useEffect, useCallback } from 'react';
+import { aiApi, donationApi } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { SENTIMENT_COLORS } from '../../utils/helpers';
+import { formatDate, formatFoodAge, getHoursAgo } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-    Legend, ResponsiveContainer, PieChart, Pie, Cell,
+    Legend, ResponsiveContainer,
 } from 'recharts';
 
 // ── Demo data ─────────────────────────────────────────────────
@@ -24,34 +24,7 @@ const DEMO_CHART = [
     { week: 'W+1', predicted: 335 }, { week: 'W+2', predicted: 350 },
 ];
 
-const DEMO_MATCHES = [
-    {
-        id: 1, donation: 'Rice 30kg – FreshMart', beneficiaries: [
-            { name: 'Priya Kumar (4)', score: 94, dietary: 'Vegetarian' },
-            { name: 'Geeta Sharma (3)', score: 81, dietary: 'Diabetic' },
-            { name: 'Ravi Nair (5)', score: 72, dietary: 'None' },
-        ]
-    },
-    {
-        id: 2, donation: 'Bread 50 loaves – City Bakery', beneficiaries: [
-            { name: 'Mohammed Ali (6)', score: 90, dietary: 'Halal' },
-            { name: 'Susan D (2)', score: 78, dietary: 'None' },
-            { name: 'Kumar HH (4)', score: 65, dietary: 'Vegan' },
-        ]
-    },
-];
-
-const DEMO_SENTIMENT = [
-    { id: 1, comment: 'The food quality was excellent!', sentiment: 'POSITIVE', date: '2026-02-18' },
-    { id: 2, comment: 'Received items were fresh and well packed.', sentiment: 'POSITIVE', date: '2026-02-17' },
-    { id: 3, comment: 'Some vegetables were wilted.', sentiment: 'NEGATIVE', date: '2026-02-16' },
-    { id: 4, comment: 'Overall fine, delivery was on time.', sentiment: 'NEUTRAL', date: '2026-02-15' },
-    { id: 5, comment: 'Very grateful, thank you!', sentiment: 'POSITIVE', date: '2026-02-14' },
-];
-
-const PIE_COLORS = { POSITIVE: '#16a34a', NEUTRAL: '#94a3b8', NEGATIVE: '#dc2626' };
-
-const TABS = ['📈 Forecast', '🍎 Quality Assessment', '🤖 Matching', '💬 Sentiment'];
+const TABS = ['📈 Forecast', '🍎 Quality Assessment'];
 
 export default function AIModulePage() {
     const [tab, setTab] = useState(0);
@@ -61,17 +34,40 @@ export default function AIModulePage() {
     const [imagePreview, setImagePreview] = useState(null);
     const [assessResult, setAssessResult] = useState(null);
     const [assessing, setAssessing] = useState(false);
-    const [matches, setMatches] = useState(DEMO_MATCHES);
-    const [sentiment, setSentiment] = useState(DEMO_SENTIMENT);
+    
+    // Pending donations with images
+    const [pendingDonations, setPendingDonations] = useState([]);
+    const [loadingDonations, setLoadingDonations] = useState(false);
+    const [selectedDonation, setSelectedDonation] = useState(null);
+
+    // Load pending donations with images
+    const loadPendingDonations = useCallback(async () => {
+        setLoadingDonations(true);
+        try {
+            const { data } = await donationApi.getAll();
+            // Filter donations that have images but no AI assessment
+            const pending = (data || []).filter(d => d.imageUrl && !d.aiAssessment);
+            setPendingDonations(pending);
+        } catch (err) {
+            console.error('Failed to load donations:', err);
+        } finally {
+            setLoadingDonations(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadPendingDonations();
+    }, [loadPendingDonations]);
 
     // Forecast
     async function runForecast() {
         setForecasting(true);
         try {
-            const { data } = await aiApi.forecast({ historicalWeeks: 4 });
-            setForecastData(data);
+            const { data } = await aiApi.demandForecast();
+            setForecastData(data?.predictions || DEMO_FORECAST_TABLE);
             toast.success('Forecast generated successfully!');
-        } catch {
+        } catch (err) {
+            console.error('Forecast error:', err);
             setForecastData(DEMO_FORECAST_TABLE);
             toast.success('Forecast generated (demo mode)');
         } finally { setForecasting(false); }
@@ -104,17 +100,27 @@ export default function AIModulePage() {
         } finally { setAssessing(false); }
     }
 
-    // Matching — assign
-    function handleAssign(donationId, beneficiaryName) {
-        toast.success(`Assigned: Parcel created for ${beneficiaryName}`);
-        setMatches((prev) => prev.filter((m) => m.id !== donationId));
+    async function assessDonationImage(donation) {
+        setAssessing(true);
+        setSelectedDonation(donation);
+        try {
+            // Call AI assessment endpoint
+            const { data } = await donationApi.aiAssess(donation.id);
+            setAssessResult(data);
+            toast.success('AI assessment completed!');
+            // Reload donations to remove assessed item from pending
+            loadPendingDonations();
+        } catch {
+            // Demo result
+            const classes = ['FRESH', 'PARTIAL', 'SPOILED'];
+            const cls = classes[Math.floor(Math.random() * 3)];
+            const result = { qualityStatus: cls, shelfLifeDays: cls === 'FRESH' ? 7 : cls === 'PARTIAL' ? 2 : 0, confidence: 0.87 };
+            setAssessResult(result);
+            toast.success('Assessment completed (demo mode)');
+        } finally { setAssessing(false); }
     }
 
-    // Sentiment pie data
-    const sentimentCounts = DEMO_SENTIMENT.reduce((acc, f) => {
-        acc[f.sentiment] = (acc[f.sentiment] ?? 0) + 1; return acc;
-    }, {});
-    const pieData = Object.entries(sentimentCounts).map(([name, value]) => ({ name, value }));
+
 
     return (
         <div className="page-container">
@@ -194,119 +200,155 @@ export default function AIModulePage() {
 
             {/* ── Tab 1: Quality Assessment ───────────────────────────── */}
             {tab === 1 && (
-                <div className="max-w-xl space-y-5">
-                    <div className="card p-6 space-y-4">
-                        <h2 className="font-semibold text-gray-900">🍎 Food Quality Assessment</h2>
-                        <p className="text-sm text-gray-500">Upload a food image to get AI-based freshness classification.</p>
-
-                        <div className="form-group">
-                            <label className="label">Upload Image</label>
-                            <input type="file" accept="image/*" className="input-field text-sm py-2" onChange={handleImageChange} />
-                        </div>
-
-                        {imagePreview && (
-                            <img src={imagePreview} alt="Food preview" className="w-full h-48 object-cover rounded-xl border border-gray-200" />
+                <div className="space-y-6">
+                    {/* Pending Donations Section */}
+                    <div className="card p-6">
+                        <h2 className="font-semibold text-gray-900 mb-4">🍎 Review Donor Food Images</h2>
+                        <p className="text-sm text-gray-500 mb-4">
+                            Assess food quality from donor-uploaded images to determine if items are safe for distribution.
+                        </p>
+                        
+                        {loadingDonations ? (
+                            <div className="flex justify-center py-8">
+                                <LoadingSpinner />
+                            </div>
+                        ) : pendingDonations.length === 0 ? (
+                            <div className="text-center py-8 text-gray-400">
+                                <div className="text-4xl mb-2">✅</div>
+                                <p>No pending donations with images to assess</p>
+                            </div>
+                        ) : (
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {pendingDonations.map((donation) => (
+                                    <div key={donation.id} className="border border-gray-200 rounded-xl p-4 hover:border-primary-400 transition-all">
+                                        <img 
+                                            src={donation.imageUrl} 
+                                            alt={donation.items?.[0]?.name || 'Food'} 
+                                            className="w-full h-40 object-cover rounded-lg mb-3"
+                                        />
+                                        <p className="font-medium text-gray-900">
+                                            {donation.items?.[0]?.name || 'Food Item'}
+                                        </p>
+                                        <p className="text-xs text-gray-500 mb-1">
+                                            Category: {donation.foodCategory || donation.items?.[0]?.category || 'N/A'}
+                                        </p>
+                                        <p className="text-xs text-gray-500 mb-1">
+                                            Prepared: {formatFoodAge(donation.foodPreparedTime)}
+                                        </p>
+                                        {getHoursAgo(donation.foodPreparedTime) > 24 && (
+                                            <p className="text-xs text-red-600 mb-1">⚠️ Food older than 24 hours</p>
+                                        )}
+                                        <p className="text-xs text-gray-500 mb-3">
+                                            {formatDate(donation.createdAt)}
+                                        </p>
+                                        {donation.description && (
+                                            <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+                                                {donation.description}
+                                            </p>
+                                        )}
+                                        <button 
+                                            onClick={() => assessDonationImage(donation)}
+                                            disabled={assessing}
+                                            className="btn-primary w-full text-sm py-2"
+                                        >
+                                            {assessing && selectedDonation?.id === donation.id ? 'Assessing...' : '🔍 Run AI Assessment'}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
                         )}
 
-                        <button onClick={assessImage} disabled={assessing || !imageFile} className="btn-primary w-full">
-                            {assessing ? 'Analyzing…' : '🔍 Assess Quality'}
-                        </button>
-
-                        {assessResult && (
-                            <div className={`p-4 rounded-xl border ${assessResult.qualityStatus === 'FRESH' ? 'bg-green-50  border-green-200' :
-                                    assessResult.qualityStatus === 'PARTIAL' ? 'bg-yellow-50 border-yellow-200' :
-                                        'bg-red-50    border-red-200'
-                                }`}>
-                                <p className="font-bold text-lg">
-                                    {assessResult.qualityStatus === 'FRESH' ? '✅ Fresh' :
-                                        assessResult.qualityStatus === 'PARTIAL' ? '⚠️ Partially Spoiled' :
-                                            '❌ Spoiled'}
-                                </p>
-                                <p className="text-sm mt-1">Estimated shelf life: <strong>{assessResult.shelfLifeDays} day(s)</strong></p>
-                                <p className="text-sm">Confidence: <strong>{(assessResult.confidence * 100).toFixed(0)}%</strong></p>
-                                <button className="btn-secondary mt-3 text-sm py-1.5">💾 Save to Inventory</button>
+                        {/* Assessment Result Modal */}
+                        {assessResult && selectedDonation && (
+                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+                                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="font-bold text-gray-900">Assessment Result</h3>
+                                        <button 
+                                            onClick={() => {setAssessResult(null); setSelectedDonation(null);}}
+                                            className="text-gray-400 hover:text-gray-600 text-2xl"
+                                        >×</button>
+                                    </div>
+                                    
+                                    <img 
+                                        src={selectedDonation.imageUrl} 
+                                        alt="Food" 
+                                        className="w-full h-48 object-cover rounded-xl mb-4"
+                                    />
+                                    
+                                    <div className={`p-4 rounded-xl border mb-4 ${
+                                        assessResult.qualityStatus === 'FRESH' ? 'bg-green-50 border-green-200' :
+                                        assessResult.qualityStatus === 'PARTIAL' ? 'bg-yellow-50 border-yellow-200' :
+                                        'bg-red-50 border-red-200'
+                                    }`}>
+                                        <p className="font-bold text-lg">
+                                            {assessResult.qualityStatus === 'FRESH' ? '✅ Fresh & Safe' :
+                                             assessResult.qualityStatus === 'PARTIAL' ? '⚠️ Partially Spoiled' :
+                                             '❌ Spoiled - Not Safe'}
+                                        </p>
+                                        <p className="text-sm mt-1">Shelf life: <strong>{assessResult.shelfLifeDays} day(s)</strong></p>
+                                        <p className="text-sm">Confidence: <strong>{(assessResult.confidence * 100).toFixed(0)}%</strong></p>
+                                        {selectedDonation.foodPreparedTime && (
+                                            <p className="text-sm mt-2 pt-2 border-t border-current">Food Age: <strong>{formatFoodAge(selectedDonation.foodPreparedTime)}</strong></p>
+                                        )}
+                                    </div>
+                                    
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => {setAssessResult(null); setSelectedDonation(null);}}
+                                            className="btn-secondary flex-1"
+                                        >
+                                            Close
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                toast.success('Assessment saved to donation record');
+                                                setAssessResult(null);
+                                                setSelectedDonation(null);
+                                            }}
+                                            className="btn-primary flex-1"
+                                        >
+                                            ✓ Confirm
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
-                </div>
-            )}
 
-            {/* ── Tab 2: Donation–Beneficiary Matching ────────────────── */}
-            {tab === 2 && (
-                <div className="space-y-4">
-                    <p className="text-sm text-gray-500">Showing unmatched donations with top-3 recommended beneficiaries (match score %).</p>
-                    {matches.length === 0 ? (
-                        <div className="card p-12 text-center text-gray-400">
-                            <div className="text-5xl mb-3">🎉</div>
-                            <p>All donations have been matched!</p>
-                        </div>
-                    ) : (
-                        matches.map((m) => (
-                            <div key={m.id} className="card p-5">
-                                <p className="font-semibold text-gray-900 mb-3">🍱 {m.donation}</p>
-                                <div className="space-y-2">
-                                    {m.beneficiaries.map((b, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                                            <div>
-                                                <p className="text-sm font-medium">{b.name}</p>
-                                                <p className="text-xs text-gray-400">Dietary: {b.dietary}</p>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className={`badge ${b.score >= 90 ? 'badge-green' : b.score >= 75 ? 'badge-yellow' : 'badge-red'}`}>
-                                                    {b.score}%
-                                                </span>
-                                                <button
-                                                    onClick={() => handleAssign(m.id, b.name)}
-                                                    className="btn-primary text-xs py-1 px-3"
-                                                >
-                                                    Assign →
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
+                    {/* Manual Upload Section */}
+                    <div className="max-w-xl">
+                        <div className="card p-6 space-y-4">
+                            <h2 className="font-semibold text-gray-900">🍎 Manual Quality Assessment</h2>
+                            <p className="text-sm text-gray-500">Upload any food image for AI-based freshness classification.</p>
+
+                            <div className="form-group">
+                                <label className="label">Upload Image</label>
+                                <input type="file" accept="image/*" className="input-field text-sm py-2" onChange={handleImageChange} />
+                            </div>
+
+                            {imagePreview && (
+                                <img src={imagePreview} alt="Food preview" className="w-full h-48 object-cover rounded-xl border border-gray-200" />
+                            )}
+
+                            <button onClick={assessImage} disabled={assessing || !imageFile} className="btn-primary w-full">
+                                {assessing ? 'Analyzing…' : '🔍 Assess Quality'}
+                            </button>
+
+                            {assessResult && !selectedDonation && (
+                                <div className={`p-4 rounded-xl border ${assessResult.qualityStatus === 'FRESH' ? 'bg-green-50  border-green-200' :
+                                        assessResult.qualityStatus === 'PARTIAL' ? 'bg-yellow-50 border-yellow-200' :
+                                            'bg-red-50    border-red-200'
+                                    }`}>
+                                    <p className="font-bold text-lg">
+                                        {assessResult.qualityStatus === 'FRESH' ? '✅ Fresh' :
+                                            assessResult.qualityStatus === 'PARTIAL' ? '⚠️ Partially Spoiled' :
+                                                '❌ Spoiled'}
+                                    </p>
+                                    <p className="text-sm mt-1">Estimated shelf life: <strong>{assessResult.shelfLifeDays} day(s)</strong></p>
+                                    <p className="text-sm">Confidence: <strong>{(assessResult.confidence * 100).toFixed(0)}%</strong></p>
                                 </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            )}
-
-            {/* ── Tab 3: Sentiment Analysis ───────────────────────────── */}
-            {tab === 3 && (
-                <div className="space-y-6">
-                    <div className="grid lg:grid-cols-2 gap-6">
-                        {/* Pie chart */}
-                        <div className="card p-5">
-                            <h3 className="font-semibold text-gray-900 mb-4">Sentiment Distribution</h3>
-                            <ResponsiveContainer width="100%" height={220}>
-                                <PieChart>
-                                    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                                        {pieData.map((entry) => (
-                                            <Cell key={entry.name} fill={PIE_COLORS[entry.name]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-
-                        {/* Feedback list */}
-                        <div className="card p-5">
-                            <h3 className="font-semibold text-gray-900 mb-4">Recent Feedback</h3>
-                            <div className="space-y-3 overflow-y-auto max-h-60">
-                                {sentiment.map((f) => {
-                                    const s = SENTIMENT_COLORS[f.sentiment];
-                                    return (
-                                        <div key={f.id} className="flex gap-3 items-start">
-                                            <span className={`badge ${s.bg} ${s.text} shrink-0 mt-0.5`}>{s.label}</span>
-                                            <div>
-                                                <p className="text-sm text-gray-800">"{f.comment}"</p>
-                                                <p className="text-xs text-gray-400 mt-0.5">{f.date}</p>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>

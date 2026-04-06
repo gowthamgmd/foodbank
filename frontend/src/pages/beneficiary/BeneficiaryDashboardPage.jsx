@@ -1,31 +1,43 @@
 import { useState, useEffect, useCallback } from 'react';
-import { beneficiaryApi, parcelApi, feedbackApi, userApi } from '../../services/api';
+import { beneficiaryApi, parcelApi, feedbackApi, userApi, foodRequestApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import FeedbackStars from '../../components/FeedbackStars';
-import { formatDate, extractErrorMessage } from '../../utils/helpers';
+import { formatDate, extractErrorMessage, formatFoodAge } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
-const DIETARY_OPTIONS = ['Diabetic', 'Gluten-Free', 'Vegetarian', 'Vegan', 'Halal', 'Kosher', 'Nut-Free', 'Lactose-Free'];
+const FOOD_CATEGORIES = ['Grains', 'Dairy', 'Proteins', 'Vegetables', 'Fruits', 'Beverages', 'Canned Goods', 'Bakery', 'Other'];
 
 const DEMO_PARCELS = [
     { id: 1, createdAt: '2026-02-15', items: [{ name: 'Rice', quantity: 5 }, { name: 'Lentils', quantity: 2 }], feedbackGiven: false },
     { id: 2, createdAt: '2026-02-01', items: [{ name: 'Vegetables', quantity: 3 }, { name: 'Bread', quantity: 2 }], feedbackGiven: true },
 ];
 
+const now = new Date();
 const DEMO_RECS = [
-    { id: 1, name: 'Rice', category: 'Grains', quantity: 15, expiryDate: '2026-03-10', qualityStatus: 'FRESH' },
-    { id: 2, name: 'Milk', category: 'Dairy', quantity: 8, expiryDate: '2026-02-25', qualityStatus: 'FRESH' },
-    { id: 3, name: 'Bread', category: 'Bakery', quantity: 10, expiryDate: '2026-02-22', qualityStatus: 'PARTIAL' },
+    { id: 1, name: 'Rice', category: 'Grains', quantity: 15, foodPreparedTime: new Date(now.getTime() - 2 * 60 * 60 * 1000), qualityStatus: 'FRESH' },
+    { id: 2, name: 'Milk', category: 'Dairy', quantity: 8, foodPreparedTime: new Date(now.getTime() - 1 * 60 * 60 * 1000), qualityStatus: 'FRESH' },
+    { id: 3, name: 'Bread', category: 'Bakery', quantity: 10, foodPreparedTime: new Date(now.getTime() - 3 * 60 * 60 * 1000), qualityStatus: 'PARTIAL' },
 ];
 
 export default function BeneficiaryDashboardPage() {
     const { user, updateUser } = useAuth();
-    const [tab, setTab] = useState('parcels');
+    const [tab, setTab] = useState('request');
     const [recs, setRecs] = useState([]);
     const [parcels, setParcels] = useState([]);
     const [loading, setLoading] = useState(true);
     const [requesting, setRequesting] = useState(null);
+
+    // Food Request Form
+    const [requestForm, setRequestForm] = useState({
+        quantityRequired: '',
+        totalMembers: '',
+        numberOfKids: '',
+        numberOfElderly: '',
+        preferredFoodCategories: [],
+        urgencyLevel: 'MEDIUM',
+    });
+    const [submittingRequest, setSubmittingRequest] = useState(false);
 
     // Feedback
     const [fbParcel, setFbParcel] = useState(null);
@@ -35,8 +47,9 @@ export default function BeneficiaryDashboardPage() {
 
     // Profile
     const [profileForm, setProfileForm] = useState({
-        familySize: user?.familySize ?? 1,
-        dietaryRestrictions: user?.dietaryRestrictions ?? [],
+        organizationName: user?.organizationName ?? '',
+        organizationDetails: user?.organizationDetails ?? '',
+        peopleSupported: user?.peopleSupported ?? 0,
         address: user?.address ?? '',
         phone: user?.phone ?? '',
     });
@@ -83,13 +96,40 @@ export default function BeneficiaryDashboardPage() {
         } finally { setFbLoading(false); }
     }
 
-    function toggleDietary(opt) {
-        setProfileForm((f) => ({
+    async function submitFoodRequest(e) {
+        e.preventDefault();
+        if (!requestForm.quantityRequired || !requestForm.totalMembers) {
+            toast.error('Please fill all required fields.'); return;
+        }
+        setSubmittingRequest(true);
+        try {
+            await foodRequestApi.create(requestForm);
+            toast.success('✅ Food request submitted successfully!');
+            setRequestForm({
+                quantityRequired: '',
+                totalMembers: '',
+                numberOfKids: '',
+                numberOfElderly: '',
+                preferredFoodCategories: [],
+                urgencyLevel: 'MEDIUM',
+            });
+        } catch (err) {
+            toast.error(extractErrorMessage(err));
+        } finally { setSubmittingRequest(false); }
+    }
+
+    function toggleFoodCategory(category) {
+        setRequestForm((f) => ({
             ...f,
-            dietaryRestrictions: f.dietaryRestrictions.includes(opt)
-                ? f.dietaryRestrictions.filter((d) => d !== opt)
-                : [...f.dietaryRestrictions, opt],
+            preferredFoodCategories: f.preferredFoodCategories.includes(category)
+                ? f.preferredFoodCategories.filter((c) => c !== category)
+                : [...f.preferredFoodCategories, category],
         }));
+    }
+
+    function handleRequestFormChange(e) {
+        const { name, value } = e.target;
+        setRequestForm((f) => ({ ...f, [name]: value }));
     }
 
     async function saveProfile(e) {
@@ -110,12 +150,12 @@ export default function BeneficiaryDashboardPage() {
         <div className="page-container">
             <div className="page-header">
                 <h1 className="page-title">🏠 Beneficiary Dashboard</h1>
-                <span className="text-sm text-gray-500">Welcome, {user?.name}</span>
+                <span className="text-sm text-gray-500">Welcome, {user?.organizationName || user?.name}</span>
             </div>
 
             {/* Tabs */}
             <div className="flex flex-wrap bg-gray-100 p-1 rounded-xl gap-1 mb-6 w-fit">
-                {[['parcels', '🍱 Parcel Suggestions'], ['history', '📦 My Parcels'], ['profile', '👤 My Profile']].map(([k, label]) => (
+                {[['request', '📝 Request Food'], ['parcels', '🍱 Available Food'], ['history', '📦 My Parcels'], ['profile', '👤 Profile']].map(([k, label]) => (
                     <button key={k} onClick={() => setTab(k)}
                         className={`py-2 px-4 rounded-lg text-sm font-semibold transition-all ${tab === k ? 'bg-white shadow-sm text-primary-700' : 'text-gray-500 hover:text-gray-700'}`}>
                         {label}
@@ -123,12 +163,75 @@ export default function BeneficiaryDashboardPage() {
                 ))}
             </div>
 
+            {/* ── Request Food ─────────────────────────────────────────── */}
+            {tab === 'request' && (
+                <div className="max-w-2xl">
+                    <div className="card p-6">
+                        <h2 className="font-semibold text-gray-900 mb-5">Submit Food Request</h2>
+                        <form onSubmit={submitFoodRequest} className="space-y-4">
+                            <div className="grid sm:grid-cols-2 gap-4">
+                                <div className="form-group">
+                                    <label className="label">Quantity Required (kg) *</label>
+                                    <input name="quantityRequired" type="number" min="1" step="0.5" className="input-field" 
+                                        placeholder="e.g., 50" value={requestForm.quantityRequired} 
+                                        onChange={handleRequestFormChange} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="label">Total Number of Members *</label>
+                                    <input name="totalMembers" type="number" min="1" className="input-field" 
+                                        placeholder="e.g., 30" value={requestForm.totalMembers} 
+                                        onChange={handleRequestFormChange} required />
+                                </div>
+                                <div className="form-group">
+                                    <label className="label">Number of Kids</label>
+                                    <input name="numberOfKids" type="number" min="0" className="input-field" 
+                                        placeholder="0" value={requestForm.numberOfKids} 
+                                        onChange={handleRequestFormChange} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="label">Number of Elderly People</label>
+                                    <input name="numberOfElderly" type="number" min="0" className="input-field" 
+                                        placeholder="0" value={requestForm.numberOfElderly} 
+                                        onChange={handleRequestFormChange} />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label className="label">Urgency Level *</label>
+                                <select name="urgencyLevel" className="input-field" 
+                                    value={requestForm.urgencyLevel} onChange={handleRequestFormChange}>
+                                    <option value="LOW">Low - Can wait 3-5 days</option>
+                                    <option value="MEDIUM">Medium - Needed within 2-3 days</option>
+                                    <option value="HIGH">High - Urgent, needed within 24 hours</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label className="label">Preferred Food Categories (Optional)</label>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                    {FOOD_CATEGORIES.map((cat) => (
+                                        <button key={cat} type="button" onClick={() => toggleFoodCategory(cat)}
+                                            className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                                                requestForm.preferredFoodCategories.includes(cat)
+                                                    ? 'bg-primary-600 border-primary-600 text-white'
+                                                    : 'border-gray-300 text-gray-600 hover:border-primary-400'
+                                            }`}>
+                                            {cat}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <button type="submit" disabled={submittingRequest} className="btn-primary w-full py-3">
+                                {submittingRequest ? 'Submitting…' : '📩 Submit Request'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* ── Parcel Suggestions ───────────────────────────────────── */}
             {tab === 'parcels' && (
                 <div className="space-y-3">
                     <p className="text-sm text-gray-500 mb-4">
-                        Personalized food recommendations based on your family size ({user?.familySize ?? profileForm.familySize})
-                        and dietary needs ({(user?.dietaryRestrictions ?? profileForm.dietaryRestrictions).join(', ') || 'None specified'}).
+                        Available food donations from donors. Browse and request items that match your organization's needs.
                     </p>
                     {recs.length === 0 ? (
                         <div className="card p-12 text-center text-gray-400">
@@ -150,7 +253,7 @@ export default function BeneficiaryDashboardPage() {
                                     </div>
                                     <div className="text-sm text-gray-500 space-y-1 mb-4 flex-1">
                                         <p>Quantity: <strong>{item.quantity} kg</strong></p>
-                                        <p>Expires: <strong>{formatDate(item.expiryDate)}</strong></p>
+                                        <p>Prepared: <strong>{formatFoodAge(item.foodPreparedTime)}</strong></p>
                                     </div>
                                     <button
                                         onClick={() => requestParcel(item)}
@@ -208,14 +311,27 @@ export default function BeneficiaryDashboardPage() {
             {tab === 'profile' && (
                 <div className="max-w-lg">
                     <div className="card p-6">
-                        <h2 className="font-semibold text-gray-900 mb-5">Edit Profile</h2>
+                        <h2 className="font-semibold text-gray-900 mb-5">Organization Profile</h2>
                         <form onSubmit={saveProfile} className="space-y-4">
+                            <div className="form-group">
+                                <label className="label">Organization Name</label>
+                                <input type="text" className="input-field" placeholder="Hope Foundation"
+                                    value={profileForm.organizationName}
+                                    onChange={(e) => setProfileForm((f) => ({ ...f, organizationName: e.target.value }))} />
+                            </div>
+                            <div className="form-group">
+                                <label className="label">Organization Details</label>
+                                <textarea rows="3" className="input-field" 
+                                    placeholder="Brief description of your organization..."
+                                    value={profileForm.organizationDetails}
+                                    onChange={(e) => setProfileForm((f) => ({ ...f, organizationDetails: e.target.value }))} />
+                            </div>
                             <div className="grid sm:grid-cols-2 gap-4">
                                 <div className="form-group">
-                                    <label className="label">Family Size</label>
-                                    <input type="number" min="1" max="20" className="input-field"
-                                        value={profileForm.familySize}
-                                        onChange={(e) => setProfileForm((f) => ({ ...f, familySize: e.target.value }))} />
+                                    <label className="label">People Supported</label>
+                                    <input type="number" min="0" className="input-field"
+                                        value={profileForm.peopleSupported}
+                                        onChange={(e) => setProfileForm((f) => ({ ...f, peopleSupported: e.target.value }))} />
                                 </div>
                                 <div className="form-group">
                                     <label className="label">Phone</label>
@@ -226,23 +342,9 @@ export default function BeneficiaryDashboardPage() {
                             </div>
                             <div className="form-group">
                                 <label className="label">Address</label>
-                                <input type="text" className="input-field" placeholder="Your address"
+                                <input type="text" className="input-field" placeholder="Organization address"
                                     value={profileForm.address}
                                     onChange={(e) => setProfileForm((f) => ({ ...f, address: e.target.value }))} />
-                            </div>
-                            <div className="form-group">
-                                <label className="label">Dietary Restrictions</label>
-                                <div className="flex flex-wrap gap-2 mt-1">
-                                    {DIETARY_OPTIONS.map((opt) => (
-                                        <button key={opt} type="button" onClick={() => toggleDietary(opt)}
-                                            className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${profileForm.dietaryRestrictions.includes(opt)
-                                                    ? 'bg-primary-600 border-primary-600 text-white'
-                                                    : 'border-gray-300 text-gray-600 hover:border-primary-400'
-                                                }`}>
-                                            {opt}
-                                        </button>
-                                    ))}
-                                </div>
                             </div>
                             <button type="submit" disabled={savingProfile} className="btn-primary w-full py-3">
                                 {savingProfile ? 'Saving…' : 'Save Profile'}

@@ -1,10 +1,8 @@
 """
 Smart Food Bank AI Microservices
-Flask application exposing 4 stub endpoints:
+Flask application exposing 2 stub endpoints:
   POST /predict   - demand forecast
   POST /assess    - food quality image assessment
-  GET  /match     - donation-beneficiary matching
-  GET  /analyze   - sentiment analysis
 """
 
 from flask import Flask, request, jsonify
@@ -83,65 +81,6 @@ def assess():
     })
 
 
-# ── 3. DONATION-BENEFICIARY MATCHING (/match) ──────────────────
-@app.route("/match", methods=["GET"])
-def match():
-    """
-    Stub matching service.
-    Real implementation: cosine similarity on dietary restriction vectors + family size weighting.
-    """
-    logger.info("Match suggestions requested")
-    suggestions = [
-        {
-            "donationId": 1,
-            "donation": "Rice 30kg – FreshMart",
-            "beneficiaries": [
-                {"name": "Kumar Family (4)",    "matchScore": 94, "dietary": "Vegetarian"},
-                {"name": "Sharma Family (3)",   "matchScore": 81, "dietary": "Diabetic"},
-                {"name": "Ravi Household (5)",  "matchScore": 72, "dietary": "None"},
-            ],
-        },
-        {
-            "donationId": 2,
-            "donation": "Bread 50 loaves – City Bakery",
-            "beneficiaries": [
-                {"name": "Mohammed Ali (6)", "matchScore": 90, "dietary": "Halal"},
-                {"name": "Susan D (2)",      "matchScore": 78, "dietary": "None"},
-                {"name": "Kumar HH (4)",     "matchScore": 65, "dietary": "Vegan"},
-            ],
-        },
-    ]
-    return jsonify({"success": True, "matches": suggestions})
-
-
-# ── 4. SENTIMENT ANALYSIS (/analyze) ───────────────────────────
-@app.route("/analyze", methods=["POST", "GET"])
-def analyze():
-    """
-    Sentiment analysis using TextBlob polarity.
-    Real implementation: BERT/RoBERTa fine-tuned on food bank feedback.
-    """
-    if request.method == "POST":
-        data    = request.json or {}
-        comment = data.get("comment", "")
-        if TEXTBLOB_AVAILABLE and comment:
-            polarity  = TextBlob(comment).sentiment.polarity
-            sentiment = "POSITIVE" if polarity > 0.1 else "NEGATIVE" if polarity < -0.1 else "NEUTRAL"
-        else:
-            sentiment = random.choice(["POSITIVE", "POSITIVE", "NEUTRAL", "NEGATIVE"])
-        return jsonify({"sentiment": sentiment, "comment": comment})
-
-    # GET: return sample sentiment summary
-    return jsonify({
-        "success": True,
-        "summary": {
-            "POSITIVE": 12,
-            "NEUTRAL":  5,
-            "NEGATIVE": 3,
-        }
-    })
-
-
 # ── Health check ───────────────────────────────────────────────
 @app.route("/health", methods=["GET"])
 def health():
@@ -150,8 +89,6 @@ def health():
         "services": {
             "forecast":  "stub",
             "vision":    "stub",
-            "matching":  "stub",
-            "sentiment": "textblob" if TEXTBLOB_AVAILABLE else "stub",
         }
     })
 

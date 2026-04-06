@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { pickupApi } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { formatDateTime, STATUS_COLORS } from '../../utils/helpers';
+import { formatDateTime, STATUS_COLORS, formatFoodAge } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
+const now = new Date();
 const DEMO_PICKUPS = [
-    { id: 1, donor: 'FreshMart Superstore', items: 'Rice 30kg, Lentils 10kg', pickupAddress: 'MG Road', pickupTime: '2026-02-21T10:00:00', status: 'PENDING' },
-    { id: 2, donor: 'City Bakery', items: 'Bread 50 loaves', pickupAddress: 'Jayanagar', pickupTime: '2026-02-21T14:00:00', status: 'PENDING' },
-    { id: 3, donor: 'ABC Corporation', items: 'Canned goods 20 units', pickupAddress: 'HSR Layout', pickupTime: '2026-02-20T09:00:00', status: 'PICKED' },
+    { id: 1, donor: 'FreshMart Superstore', items: 'Rice 30kg, Lentils 10kg', foodPreparedTime: new Date(now.getTime() - 3 * 60 * 60 * 1000), pickupAddress: 'MG Road', pickupTime: '2026-02-21T10:00:00', status: 'PENDING' },
+    { id: 2, donor: 'City Bakery', items: 'Bread 50 loaves', foodPreparedTime: new Date(now.getTime() - 1 * 60 * 60 * 1000), pickupAddress: 'Jayanagar', pickupTime: '2026-02-21T14:00:00', status: 'PENDING' },
+    { id: 3, donor: 'ABC Corporation', items: 'Canned goods 20 units', foodPreparedTime: new Date(now.getTime() - 2 * 60 * 60 * 1000), pickupAddress: 'HSR Layout', pickupTime: '2026-02-20T09:00:00', status: 'PICKED' },
 ];
 
 export default function PickupManagementPage() {
@@ -46,7 +47,7 @@ export default function PickupManagementPage() {
             <div className="table-wrapper">
                 <table className="table">
                     <thead>
-                        <tr><th>Donor</th><th>Items</th><th>Pickup Address</th><th>Pickup Time</th><th>Status</th><th>Actions</th></tr>
+                        <tr><th>Donor</th><th>Items</th><th>Food Ready (Hrs)</th><th>Pickup Address</th><th>Pickup Time</th><th>Status</th><th>Actions</th></tr>
                     </thead>
                     <tbody>
                         {pickups.map((p) => {
@@ -55,6 +56,7 @@ export default function PickupManagementPage() {
                                 <tr key={p.id}>
                                     <td className="font-medium">{p.donor}</td>
                                     <td className="text-sm text-gray-600 max-w-[200px]">{p.items}</td>
+                                    <td className="text-sm">{formatFoodAge(p.foodPreparedTime)}</td>
                                     <td className="text-sm text-gray-500">{p.pickupAddress}</td>
                                     <td className="text-sm">{formatDateTime(p.pickupTime)}</td>
                                     <td><span className={`badge ${s.bg} ${s.text}`}>{s.label}</span></td>

@@ -1,12 +1,22 @@
-FROM eclipse-temurin:21-jdk-jammy AS build
-WORKDIR /workspace
-COPY pom.xml .
-COPY src src
-RUN apt-get update && apt-get install -y maven
-RUN mvn package -DskipTests -q
+# Backend Dockerfile - Node.js + Express + SQLite
+FROM node:20-alpine
 
-FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
-COPY --from=build /workspace/target/*.jar app.jar
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --production
+
+# Copy application code
+COPY . .
+
+# Create uploads directory
+RUN mkdir -p uploads
+
+# Expose port
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# Start server
+CMD ["node", "server.js"]

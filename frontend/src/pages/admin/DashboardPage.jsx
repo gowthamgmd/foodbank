@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import StatCard from '../../components/StatCard';
 import ExpiryBadge from '../../components/ExpiryBadge';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { inventoryApi, beneficiaryApi, donationApi } from '../../services/api';
-import { formatDate, formatKg, QUALITY_COLORS, STATUS_COLORS } from '../../utils/helpers';
+import { inventoryApi, beneficiaryApi, donationApi, foodRequestApi } from '../../services/api';
+import { formatDate, formatKg, formatFoodAge, QUALITY_COLORS, STATUS_COLORS } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -31,18 +31,25 @@ const DEMO_MATCHES = [
 export default function AdminDashboardPage() {
     const [inventory, setInventory] = useState([]);
     const [expiring, setExpiring] = useState([]);
+    const [foodRequests, setFoodRequests] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        Promise.all([inventoryApi.getAll(), inventoryApi.getExpiring()])
-            .then(([invRes, expRes]) => {
+        Promise.all([
+            inventoryApi.getAll(), 
+            inventoryApi.getExpiring(),
+            foodRequestApi.getAll()
+        ])
+            .then(([invRes, expRes, reqRes]) => {
                 setInventory(invRes.data ?? []);
                 setExpiring(expRes.data ?? []);
+                setFoodRequests(reqRes.data ?? []);
             })
             .catch(() => {
                 // Use demo data when backend not available
                 setInventory([]);
                 setExpiring([]);
+                setFoodRequests([]);
             })
             .finally(() => setLoading(false));
     }, []);
@@ -95,6 +102,63 @@ export default function AdminDashboardPage() {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Food Requests from Beneficiaries */}
+            {foodRequests.length > 0 && (
+                <div className="card p-5 mb-6 border-l-4 border-primary-400 bg-primary-50">
+                    <h2 className="font-semibold text-primary-800 mb-4 flex items-center gap-2">
+                        📝 Food Requests from Organizations ({foodRequests.length})
+                    </h2>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {foodRequests.slice(0, 6).map((req) => (
+                            <div key={req.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                                <div className="flex items-start justify-between mb-2">
+                                    <div>
+                                        <p className="font-semibold text-gray-900">
+                                            {req.beneficiary?.organizationName || req.beneficiary?.name || 'Organization'}
+                                        </p>
+                                        <p className="text-xs text-gray-400">{formatDate(req.createdAt)}</p>
+                                    </div>
+                                    <span className={`badge text-xs ${
+                                        req.urgencyLevel === 'HIGH' ? 'badge-red' :
+                                        req.urgencyLevel === 'MEDIUM' ? 'badge-yellow' :
+                                        'badge-blue'
+                                    }`}>
+                                        {req.urgencyLevel}
+                                    </span>
+                                </div>
+                                <div className="space-y-1 text-sm text-gray-600 mb-3">
+                                    <div className="flex justify-between">
+                                        <span>Quantity:</span>
+                                        <strong>{req.quantityRequired} kg</strong>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Members:</span>
+                                        <strong>{req.totalMembers}</strong>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Status:</span>
+                                        <span className={`badge text-xs ${
+                                            req.status === 'FULFILLED' ? 'badge-green' :
+                                            req.status === 'PENDING' ? 'badge-yellow' :
+                                            'badge-blue'
+                                        }`}>
+                                            {req.status}
+                                        </span>
+                                    </div>
+                                </div>
+                                {req.preferredFoodCategories && req.preferredFoodCategories.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                        {req.preferredFoodCategories.slice(0, 3).map((cat, idx) => (
+                                            <span key={idx} className="badge badge-blue text-xs">{cat}</span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
@@ -158,7 +222,7 @@ export default function AdminDashboardPage() {
                     <div className="table-wrapper">
                         <table className="table">
                             <thead>
-                                <tr><th>Name</th><th>Category</th><th>Quantity</th><th>Expiry</th><th>Quality</th></tr>
+                                <tr><th>Name</th><th>Category</th><th>Quantity</th><th>Food Ready (Hours Ago)</th><th>Quality</th></tr>
                             </thead>
                             <tbody>
                                 {inventory.slice(0, 8).map((item) => {
@@ -168,7 +232,7 @@ export default function AdminDashboardPage() {
                                             <td className="font-medium">{item.name}</td>
                                             <td>{item.category}</td>
                                             <td>{formatKg(item.quantity)}</td>
-                                            <td>{formatDate(item.expiryDate)}</td>
+                                            <td>{formatFoodAge(item.foodPreparedTime)}</td>
                                             <td>
                                                 <span className={`badge ${q.bg} ${q.text}`}>{q.label}</span>
                                             </td>

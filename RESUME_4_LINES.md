@@ -1,5 +1,5 @@
-# Smart Food Bank - Resume Summary
+# Smart Food Bank - Resume Summary (What You Built)
 
-**Smart Food Bank** - Full-stack platform connecting food donors to beneficiaries using React, Node.js, MongoDB, Flask; addresses food waste through real-time coordination and AI quality assessment.
-Built 50+ APIs with JWT auth, role-based access (Donor/Beneficiary/Admin), and ML-powered image assessment reducing manual inspection by 70%.
-Deployed on Vercel/Render/MongoDB Atlas: foodbank-94q8.onrender.com.
+**Smart Food Bank** - Full-stack web platform with React frontend, Node.js/Express backend, MongoDB database, Flask microservices; featuring real-time donation tracking, inventory management, and AI-powered food quality assessment system.
+Architected 50+ REST APIs with JWT authentication, role-based access control for Donors/Beneficiaries/Admins, and integrated machine learning models for automated quality inspection achieving 70% efficiency improvement.
+Deployed production-ready 3-tier application across Vercel (frontend), Render (backend), and MongoDB Atlas with complete CI/CD pipeline; live at foodbank-94q8.onrender.com.

@@ -1,12 +1,17 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "env": {
-    "VITE_API_URL": "https://foodbank-backend.onrender.com"
-  },
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(?!api).*",
+      "source": "/api/:path*",
+      "destination": "http://3.108.155.142:8080/api/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "http://3.108.155.142:8080/uploads/:path*"
+    },
+    {
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]

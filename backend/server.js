@@ -12,20 +12,51 @@ const path = require('path');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+// Enhanced CORS configuration (supports local dev and Vercel deployments)
+const allowedOrigins = [
+    'http://3.108.155.142:3000',
+    'http://localhost:3000',
+    'http://localhost:5173',
+];
+
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+
+        const isAllowed = allowedOrigins.includes(origin);
+        const isVercelPreview = /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/.test(origin);
+
+        if (isAllowed || isVercelPreview) {
+            return callback(null, true);
+        }
+
+        return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://foodbank:password@foodbank-cluster.mongodb.net/foodbank?retryWrites=true&w=majority';
+console.log('🔄 Attempting MongoDB connection to:', MONGODB_URI.split('@')[0] + '@...');
 mongoose.connect(MONGODB_URI, {
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 45000,
 })
     .then(() => console.log('✅ Connected to MongoDB'))
-    .catch(err => console.error('❌ MongoDB connection error:', err));
+    .catch(err => {
+        console.error('❌ MongoDB connection error:', err.message);
+        console.error('💡 Check if MongoDB is running at:', process.env.MONGODB_URI);
+    });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'SmartFoodBank2024_SuperSecretKey';
 const PORT = process.env.PORT || 8080;
+const BACKEND_HOST = process.env.BACKEND_HOST || '0.0.0.0'; // Bind to all interfaces
 const AI_BASE_URL = process.env.AI_BASE_URL || 'http://localhost:5001';
 const upload = multer({ dest: 'uploads/' });
 app.use('/uploads', express.static('uploads'));
@@ -157,9 +188,54 @@ const requireRole = (roles) => (req, res, next) => {
     next();
 };
 
+// Async error wrapper for routes
+const asyncHandler = (fn) => (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch((err) => {
+        console.error('🔴 Route Error:', { path: req.path, method: req.method, error: err.message });
+        next(err);
+    });
+};
+
 app.use(authenticateToken);
 
 // ------------- PUBLIC ROUTES (Excluded in Middleware) -------------
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        backend: 'running',
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        environment: process.env.NODE_ENV || 'development',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Debug endpoint - check all services
+app.get('/api/debug/status', (req, res) => {
+    res.json({
+        backend: {
+            status: 'running',
+            host: BACKEND_HOST,
+            port: PORT,
+            env: process.env.NODE_ENV
+        },
+        database: {
+            status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+            host: process.env.MONGODB_URI || 'not configured'
+        },
+        ai_services: {
+            url: AI_BASE_URL,
+            status: 'configured'
+        },
+        environment_vars: {
+            BACKEND_HOST,
+            PORT,
+            AI_BASE_URL,
+            NODE_ENV: process.env.NODE_ENV
+        }
+    });
+});
 
 app.post('/api/auth/register/:role', async (req, res) => {
     try {
@@ -859,6 +935,28 @@ process.on('SIGTERM', async () => {
     process.exit(0);
 });
 
+// Global error handler
+app.use((err, req, res, next) => {
+    console.error('❌ Unhandled Error:', {
+        message: err.message,
+        stack: err.stack,
+        path: req.path,
+        method: req.method,
+        body: req.body
+    });
+    
+    res.status(err.status || 500).json({
+        error: err.message || 'Internal server error',
+        status: err.status || 500,
+        path: req.path
+    });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: 'Route not found', path: req.path });
+});
+
 // Initialize database and start server
 async function startServer() {
     try {
@@ -885,10 +983,11 @@ async function startServer() {
             console.log('✅ Default admin user created');
         }
 
-        app.listen(PORT, () => {
-            console.log(`🚀 SMART FOOD BANK - Backend & Integrated AI Services running on http://localhost:${PORT}`);
-            console.log(`   📊 AI Services (Predict/Assess): http://localhost:5001`);
-            console.log(`   📡 Backend API Proxy: http://localhost:${PORT}/api/ai`);
+        app.listen(PORT, BACKEND_HOST, () => {
+            console.log(`🚀 SMART FOOD BANK - Backend & Integrated AI Services`);
+            console.log(`   🌐 Backend running on http://3.108.155.142:${PORT}`);
+            console.log(`   📊 AI Services: http://3.108.155.142:5001`);
+            console.log(`   📡 API Base: http://3.108.155.142:${PORT}/api`);
         });
     } catch (error) {
         console.error('❌ Error starting server:', error);

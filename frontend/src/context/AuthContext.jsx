@@ -56,7 +56,7 @@ export function AuthProvider({ children }) {
 
     const updateUser = useCallback((patch) => {
         setUser((prev) => {
-            const merged = { ...prev, ...patch };
+            const merged = { ...(prev || {}), ...(patch || {}) };
             localStorage.setItem('fb_user', JSON.stringify(merged));
             return merged;
         });

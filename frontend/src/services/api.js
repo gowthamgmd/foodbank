@@ -1,11 +1,14 @@
 import axios from 'axios';
 
-// Use environment variable for API URL, fallback to local for development
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// In production (Vercel), use same-origin /api and let rewrites forward to backend.
+// In development, use VITE_API_URL if provided, otherwise localhost backend.
+const API_BASE_URL = import.meta.env.PROD
+    ? ''
+    : (import.meta.env.VITE_API_URL || 'http://localhost:8080');
 
 // Pure axios instance — no side effects at module level
 const api = axios.create({
-    baseURL: `${API_BASE_URL}/api`,
+    baseURL: API_BASE_URL ? `${API_BASE_URL}/api` : '/api',
     headers: { 'Content-Type': 'application/json' },
 });
 

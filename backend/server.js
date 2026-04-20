@@ -5,6 +5,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
 const multer = require('multer');
+const { spawn } = require('child_process');
+const path = require('path');
 
 // Load environment variables
 require('dotenv').config();
@@ -769,9 +771,105 @@ app.put('/api/users/profile', async (req, res) => {
 
 app.use('/uploads', express.static('uploads'));
 
+// ═══════════════════════════════════════════════════════════════
+// AI SERVICES SPAWNING (Integrated with Backend)
+// ═══════════════════════════════════════════════════════════════
+
+let aiServiceProcess = null;
+
+async function startAIServices() {
+    return new Promise((resolve, reject) => {
+        console.log('🤖 Starting integrated AI services...');
+        
+        const aiDir = path.join(__dirname, 'ai');
+        const pythonScript = path.join(aiDir, 'app.py');
+        
+        // Check if Python is available
+        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+        
+        // Spawn the Flask AI service as a child process
+        aiServiceProcess = spawn(pythonCmd, [pythonScript], {
+            cwd: aiDir,
+            stdio: ['pipe', 'pipe', 'pipe'],
+            shell: process.platform === 'win32'
+        });
+        
+        let startupOutput = '';
+        let hasStarted = false;
+        
+        // Monitor stdout for startup confirmation
+        aiServiceProcess.stdout.on('data', (data) => {
+            const output = data.toString();
+            console.log(`[AI Service] ${output}`);
+            startupOutput += output;
+            
+            // Check if Flask has started
+            if (output.includes('Running on') && !hasStarted) {
+                hasStarted = true;
+                console.log('✅ AI Services started successfully');
+                resolve();
+            }
+        });
+        
+        // Monitor stderr
+        aiServiceProcess.stderr.on('data', (data) => {
+            console.log(`[AI Service Error] ${data.toString()}`);
+        });
+        
+        // Handle process exit
+        aiServiceProcess.on('exit', (code, signal) => {
+            if (code !== null) {
+                console.error(`⚠️  AI Service exited with code ${code}`);
+            }
+            if (signal) {
+                console.error(`⚠️  AI Service killed with signal ${signal}`);
+            }
+        });
+        
+        // Handle process errors
+        aiServiceProcess.on('error', (err) => {
+            console.error('❌ Failed to start AI Services:', err.message);
+            reject(err);
+        });
+        
+        // Timeout after 30 seconds
+        setTimeout(() => {
+            if (!hasStarted) {
+                console.warn('⚠️  AI Services startup timeout - proceeding anyway');
+                resolve(); // Continue even if startup detection fails
+            }
+        }, 30000);
+    });
+}
+
+// Graceful shutdown for AI services
+process.on('SIGINT', async () => {
+    console.log('\n🛑 Shutting down...');
+    if (aiServiceProcess) {
+        console.log('Terminating AI Services...');
+        aiServiceProcess.kill('SIGTERM');
+    }
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    if (aiServiceProcess) {
+        aiServiceProcess.kill('SIGTERM');
+    }
+    process.exit(0);
+});
+
 // Initialize database and start server
 async function startServer() {
     try {
+        // Start AI Services first
+        try {
+            await startAIServices();
+        } catch (aiError) {
+            console.warn('⚠️  AI Services failed to start, but backend will continue:', aiError.message);
+            console.warn('💡 Make sure Python and requirements are installed: pip install -r ai/requirements.txt');
+        }
+        
         // Wait for MongoDB connection
         await mongoose.connection.asPromise();
         
@@ -788,7 +886,9 @@ async function startServer() {
         }
 
         app.listen(PORT, () => {
-            console.log(`🚀 SECURE Node.js Backend & AI Proxy running on http://localhost:${PORT}`);
+            console.log(`🚀 SMART FOOD BANK - Backend & Integrated AI Services running on http://localhost:${PORT}`);
+            console.log(`   📊 AI Services (Predict/Assess): http://localhost:5001`);
+            console.log(`   📡 Backend API Proxy: http://localhost:${PORT}/api/ai`);
         });
     } catch (error) {
         console.error('❌ Error starting server:', error);
